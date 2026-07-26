@@ -32,3 +32,13 @@ class ScamCheckResponse(BaseModel):
 
 class ApiKeyUpdate(BaseModel):
     api_key: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    role: Optional[str] = "citizen"
+
+class LoginResponse(BaseModel):
+    token: str
+    role: str
+    message: str

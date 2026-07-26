@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import database as db
 
 # Import routers
-from routers import health, chat, documents, schemes, scams, analytics, settings
+from routers import health, chat, documents, schemes, scams, analytics, settings, auth
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +32,7 @@ async def startup_event():
 
 # Include routers
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(schemes.router)
