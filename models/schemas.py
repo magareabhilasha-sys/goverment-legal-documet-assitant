@@ -42,3 +42,15 @@ class LoginResponse(BaseModel):
     token: str
     role: str
     message: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    role: Optional[str] = "citizen"
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

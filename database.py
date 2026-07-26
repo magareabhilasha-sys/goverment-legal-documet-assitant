@@ -23,7 +23,8 @@ _mock_store = {
         "scam_checks": 0,
         "scam_warnings_triggered": 0,
         "documents_uploaded": 0
-    }
+    },
+    "users": []
 }
 
 async def init_db():
@@ -168,3 +169,31 @@ async def get_analytics():
             doc = await db.analytics.find_one({"metric": m})
             result[m] = doc["value"] if doc else 0
         return result
+
+async def save_user(user: dict):
+    if MOCK_MODE or db is None:
+        _mock_store["users"].append(user)
+    else:
+        await db.users.insert_one(user)
+    return user
+
+async def get_user(email: str):
+    if MOCK_MODE or db is None:
+        for u in _mock_store["users"]:
+            if u["email"] == email:
+                return u
+        return None
+    else:
+        return await db.users.find_one({"email": email})
+
+async def update_password(email: str, hashed_password: str):
+    if MOCK_MODE or db is None:
+        for u in _mock_store["users"]:
+            if u["email"] == email:
+                u["password"] = hashed_password
+                break
+    else:
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"password": hashed_password}}
+        )
