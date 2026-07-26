@@ -1,0 +1,196 @@
+import os
+import json
+import logging
+import random
+from config import GEMINI_API_KEY
+
+logger = logging.getLogger("gemini_service")
+
+# Safe import for google.genai
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_AVAILABLE = True
+except ImportError:
+    genai = None
+    types = None
+    GENAI_AVAILABLE = False
+    logger.info("google.genai package not found in Python environment. Using Mock Intelligence mode.")
+
+# Initialize Gemini SDK if API key is provided and SDK is installed
+api_key = GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+client = None
+
+if api_key and GENAI_AVAILABLE:
+    logger.info("Initializing Gemini API with provided key.")
+    try:
+        client = genai.Client(api_key=api_key)
+        has_gemini = True
+    except Exception as e:
+        logger.warning(f"Failed to configure Gemini API: {e}")
+        has_gemini = False
+else:
+    has_gemini = False
+    if not GENAI_AVAILABLE:
+        logger.info("Gemini SDK not installed. Running in Mock simulation mode.")
+    else:
+        logger.info("No Gemini API key found. Running in Mock LLM simulation mode.")
+
+def update_api_key(new_key: str):
+    """Dynamic key configuration from frontend/settings."""
+    global api_key, has_gemini, client
+    if new_key and GENAI_AVAILABLE:
+        api_key = new_key
+        try:
+            client = genai.Client(api_key=new_key)
+            has_gemini = True
+            logger.info("Gemini API key updated dynamically.")
+        except Exception as e:
+            logger.error(f"Error configuring Gemini with key: {e}")
+            has_gemini = False
+    else:
+        has_gemini = False
+        client = None
+        logger.warning("Gemini API key cleared or SDK missing. Switched to Mock mode.")
+
+async def generate_embedding(text: str) -> list[float]:
+    """Generates a text embedding vector"""
+    if not text:
+        return [0.0] * 768
+        
+    if has_gemini and GENAI_AVAILABLE and client:
+        try:
+            result = client.models.embed_content(
+                model="text-embedding-004",
+                contents=text,
+                config=types.EmbedContentConfig(task_type="retrieval_document")
+            )
+            return result.embeddings[0].values
+        except Exception as e:
+            logger.error(f"Gemini embedding error: {e}. Returning mock vector.")
+            
+    random.seed(hash(text))
+    return [random.uniform(-0.1, 0.1) for _ in range(768)]
+
+async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None) -> str:
+    """Generates a chat completion with history and system prompts"""
+    if chat_history is None:
+        chat_history = []
+        
+    if has_gemini and GENAI_AVAILABLE and client:
+        try:
+            contents = []
+            for msg in chat_history:
+                role = "user" if msg["sender"] == "user" else "model"
+                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg["text"])]))
+            
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=prompt)]))
+            
+            config_args = {}
+            if system_instruction:
+                config_args["system_instruction"] = system_instruction
+                
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(**config_args) if config_args else None
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Gemini text generation error: {e}. Falling back to mock generator.")
+            
+    prompt_lower = prompt.lower()
+    
+    is_hindi = any(word in prompt_lower for word in ["नमस्ते", "है", "क्या", "कहाँ", "योजना", "दस्तावेज"])
+    is_marathi = any(word in prompt_lower for word in ["नमस्कार", "आहे", "कुठे", "माहिती", "कागदपत्रे"])
+    
+    if "pm-kisan" in prompt_lower or "pm kisan" in prompt_lower or "किसान" in prompt_lower:
+        if is_hindi:
+            return "पीएम-किसान (PM-KISAN) योजना के तहत सीमांत किसानों को प्रति वर्ष ₹6,000 की वित्तीय सहायता दी जाती है। यह राशि ₹2,000 की तीन किश्तों में दी जाती है। इसके लिए आधार कार्ड, बैंक खाता और भूमि रिकॉर्ड दस्तावेज़ आवश्यक हैं।"
+        elif is_marathi:
+            return "पीएम-किसान (PM-KISAN) योजनेअंतर्गत अल्पभूधारक शेतकऱ्यांना दरवर्षी ₹६,००० चे आर्थिक सहाय्य दिले जाते. ही रक्कम ₹२,००० च्या तीन हप्त्यांमध्ये दिली जाते. यासाठी आधार कार्ड, बँक खाते आणि जमिनीचे कागदपत्रे आवश्यक आहेत।"
+        return "The PM-KISAN scheme provides ₹6,000 per year in three equal installments of ₹2,000 to small and marginal landholding farmers. Required documents: Aadhaar card, land records, bank account, and mobile number."
+        
+    if "pmsym" in prompt_lower or "pension" in prompt_lower or "पेंशन" in prompt_lower:
+        if is_hindi:
+            return "प्रधानमंत्री श्रम योगी मान-धन (PM-SYM) योजना असंगठित क्षेत्र के श्रमिकों (18-40 वर्ष) के लिए एक पेंशन योजना है। 60 वर्ष की आयु के बाद ₹3,000 मासिक पेंशन मिलती है।"
+        elif is_marathi:
+            return "पंतप्रधान श्रम योगी मान-धन (PM-SYM) योजना असंघटित क्षेत्रातील कामगारांसाठी (१८-४० वर्षे) पेन्शन योजना आहे. वयाच्या ६० वर्षांनंतर ₹३,००० मासिक पेन्शन मिळते."
+        return "The PM-SYM scheme is a voluntary pension scheme for unorganized workers aged 18-40 with income under ₹15,000. Provides ₹3,000 monthly pension after age 60."
+
+    if "hello" in prompt_lower or "hi" in prompt_lower or "नमस्ते" in prompt_lower or "नमस्कार" in prompt_lower:
+        if is_hindi:
+            return "नमस्ते! मैं आपका एआई कानूनी और सरकारी योजना सहायक हूँ। मैं आपकी किस प्रकार सहायता कर सकता हूँ? आप दस्तावेज़ अपलोड कर सकते हैं या किसी भी योजना के बारे में पूछ सकते हैं।"
+        elif is_marathi:
+            return "नमस्कार! मी तुमचा एआय कायदेशीर आणि शासकीय योजना सहाय्यक आहे. मी तुम्हाला कशी मदत करू शकतो? तुम्ही कागदपत्रे अपलोड करू शकता किंवा योजनेबद्दल विचारू शकता."
+        return "Hello! I am your AI Legal and Government Scheme Assistant. How can I help you today? You can search schemes, upload documents for RAG QA, or check messages for scams!"
+
+    if is_hindi:
+        return f"आपके प्रश्न '{prompt}' के आधार पर, यह एक सरकारी सेवा या योजना से संबंधित प्रतीत होता है। कृपया अधिक विवरण प्रदान करें या विशिष्ट दस्तावेज अपलोड करें ताकि मैं सटीक विवरण प्रदान कर सकूं।"
+    elif is_marathi:
+        return f"तुमच्या '{prompt}' या प्रश्नावरून, हे शासकीय योजना किंवा कायद्याशी संबंधित दिसते. कृपया अधिक माहिती द्या किंवा कागदपत्रे अपलोड करा जेणेकरून मी अचूक माहिती देऊ शकेन."
+    return f"Based on your query: '{prompt}', I can assist you with government scheme search, document analysis, form guidance, and scam warning checks. Please upload a PDF or clarify your request so I can give you a precise answer."
+
+async def detect_scam(text: str) -> dict:
+    """Uses Gemini to detect if text/link is a scam and returns structured results."""
+    system_prompt = (
+        "You are an expert Cybersecurity Scam Detection and Red-Flag warning agent. "
+        "Analyze the provided text, link, or message. "
+        "Determine if it is a scam (phishing, fraudulent government scheme, fake agent, unofficial link, fake lottery/prizes, urgent request for sensitive details). "
+        "Provide a JSON response with the exact keys: 'is_scam' (bool), 'confidence' (float 0-1), 'reason' (string), and 'safety_steps' (string)."
+    )
+    
+    if has_gemini and GENAI_AVAILABLE and client:
+        try:
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=[system_prompt, f"Analyze this message: {text}"],
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            parsed = json.loads(response.text)
+            return {
+                "is_scam": bool(parsed.get("is_scam", False)),
+                "confidence": float(parsed.get("confidence", 0.0)),
+                "reason": str(parsed.get("reason", "Unknown")),
+                "safety_steps": str(parsed.get("safety_steps", "Do not share personal details."))
+            }
+        except Exception as e:
+            logger.error(f"Gemini scam detection error: {e}. Falling back to rules engine.")
+            
+    text_lower = text.lower()
+    
+    scam_keywords = ["lottery", "prize", "won", "crore", "lakh", "gift card", "otp", "password", 
+                     "bank account", "instant approval", "guaranteed money", "fake agent", "middleman",
+                     "bit.ly", "tinyurl.com", "click here", "urgently", "limited time", "free cash"]
+    
+    matched_words = [word for word in scam_keywords if word in text_lower]
+    
+    has_url = "http" in text_lower or ".com" in text_lower or ".in" in text_lower
+    has_gov = ".gov.in" in text_lower or "nic.in" in text_lower
+    
+    is_scam = False
+    confidence = 0.0
+    reason = "This message seems safe, but always verify details through official channels."
+    safety_steps = "Always visit official government portals ending in '.gov.in' and never share OTPs or personal credentials."
+    
+    if len(matched_words) >= 2 or (has_url and not has_gov and ("kisan" in text_lower or "yojana" in text_lower or "free" in text_lower)):
+        is_scam = True
+        confidence = round(0.7 + (len(matched_words) * 0.05 if len(matched_words) < 6 else 0.2), 2)
+        reason = f"Detected suspicious keywords {matched_words} and unofficial link structures. Scammers often use unofficial domains mimicking official schemes to steal bank details or personal info."
+        safety_steps = (
+            "1. DO NOT click the link or share any personal/financial details.\n"
+            "2. Cross-check the scheme on the official portal (ending with .gov.in).\n"
+            "3. Remember that government schemes NEVER request fees or OTPs via SMS or WhatsApp."
+        )
+    elif "otp" in text_lower or ("bank" in text_lower and ("urgent" in text_lower or "verify" in text_lower)):
+        is_scam = True
+        confidence = 0.85
+        reason = "Message requests urgent bank details verification or sharing an OTP. No legitimate government official will ask for sensitive data via message."
+        safety_steps = "1. Never share OTPs, PINs, or account numbers with anyone.\n2. Contact your bank directly through their official helpline."
+        
+    return {
+        "is_scam": is_scam,
+        "confidence": confidence,
+        "reason": reason,
+        "safety_steps": safety_steps
+    }

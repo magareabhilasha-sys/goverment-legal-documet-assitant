@@ -1,7 +1,7 @@
 import asyncio
 import sys
-from app.database import init_db, save_chat_message, get_chat_history, search_schemes, save_scam_log, get_analytics
-from app.services.gemini_service import generate_chat_response, detect_scam
+from database import init_db, save_chat_message, get_chat_history, search_schemes, save_scam_log, get_analytics
+from services.gemini_service import generate_chat_response, detect_scam
 
 async def test_all():
     print("--- Starting Backend & MongoDB Integration Tests ---")
