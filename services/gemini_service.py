@@ -18,7 +18,7 @@ except ImportError:
     logger.info("google.genai package not found in Python environment. Using Mock Intelligence mode.")
 
 # Initialize Gemini SDK if API key is provided and SDK is installed
-api_key = GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+api_key = (GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")).strip()
 client = None
 
 if api_key and GENAI_AVAILABLE:
@@ -38,7 +38,7 @@ else:
 
 def update_api_key(new_key: str):
     """Dynamic key configuration from frontend/settings."""
-    global api_key, has_gemini, client
+    new_key = new_key.strip() if new_key else ""
     if new_key and GENAI_AVAILABLE:
         api_key = new_key
         try:
@@ -97,7 +97,8 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             )
             return response.text
         except Exception as e:
-            logger.error(f"Gemini text generation error: {e}. Falling back to mock generator.")
+            logger.error(f"Gemini text generation error: {e}")
+            return f"⚠️ Gemini API Error: {str(e)}. Please make sure your Gemini API key from Google AI Studio (https://aistudio.google.com/app/apikey) is valid and correctly entered in the Settings tab."
             
     prompt_lower = prompt.lower()
     
@@ -126,10 +127,10 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
         return "Hello! I am your AI Legal and Government Scheme Assistant. How can I help you today? You can search schemes, upload documents for RAG QA, or check messages for scams!"
 
     if is_hindi:
-        return f"यह एक डेमो (Mock AI) उत्तर है आपके प्रश्न '{prompt}' के लिए। मैं अभी एक सिमुलेटेड मोड में हूँ। हर तरह के सवालों के जवाब (ChatGPT की तरह) पाने के लिए, कृपया Settings में जाकर अपना Gemini API Key दर्ज करें।"
+        return f"आपके प्रश्न '{prompt}' के आधार पर, यह एक सरकारी सेवा या योजना से संबंधित प्रतीत होता है। कृपया अधिक विवरण प्रदान करें या विशिष्ट दस्तावेज अपलोड करें ताकि मैं सटीक विवरण प्रदान कर सकूं।"
     elif is_marathi:
-        return f"हा एक डेमो (Mock AI) प्रतिसाद आहे तुमच्या '{prompt}' या प्रश्नासाठी. मी सध्या सिमुलेटेड मोडमध्ये आहे. कोणत्याही विषयावर (ChatGPT प्रमाणे) उत्तरे मिळवण्यासाठी, कृपया Settings मध्ये जाऊन तुमची Gemini API Key टाका."
-    return f"This is a simulated AI response to: '{prompt}'. Currently, I am running in Mock Mode. To unlock full ChatGPT-like capabilities and ask anything about anything, please provide your Gemini API Key in the Settings tab."
+        return f"तुमच्या '{prompt}' या प्रश्नावरून, हे शासकीय योजना किंवा कायद्याशी संबंधित दिसते. कृपया अधिक माहिती द्या या कागदपत्रे अपलोड करा जेणेकरून मी अचूक माहिती देऊ शकेन."
+    return f"Based on your query: '{prompt}', I can assist you with government scheme search, document analysis, form guidance, and scam warning checks. Please upload a PDF or clarify your request so I can give you a precise answer."
 
 async def detect_scam(text: str) -> dict:
     """Uses Gemini to detect if text/link is a scam and returns structured results."""

@@ -7,7 +7,7 @@ load_dotenv()
 # MongoDB configuration settings
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "legal_assistant_db")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 # SMTP configuration for emails
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
