@@ -72,6 +72,21 @@ async def generate_embedding(text: str) -> list[float]:
     random.seed(hash(text))
     return [random.uniform(-0.1, 0.1) for _ in range(768)]
 
+FALLBACK_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemma-4-31b-it",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro"
+]
+
+
 async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False) -> str:
     """Generates a chat completion with history and system prompts"""
     if chat_history is None:
@@ -90,12 +105,27 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             if system_instruction:
                 config_args["system_instruction"] = system_instruction
                 
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=contents,
-                config=types.GenerateContentConfig(**config_args) if config_args else None
-            )
-            return response.text
+            last_error = None
+            for model_name in FALLBACK_MODELS:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(**config_args) if config_args else None
+                    )
+                    return response.text
+                except Exception as e:
+                    logger.warning(f"Model {model_name} failed: {e}")
+                    last_error = e
+            
+            # If all failed:
+            try:
+                available_models = [m.name for m in client.models.list()]
+                models_str = ", ".join(available_models)
+            except Exception as e:
+                models_str = f"Could not fetch models: {e}"
+                
+            return f"⚠️ Gemini API Error: No models worked. Last error: {str(last_error)}. \n\n**AVAILABLE MODELS FOR YOUR KEY:** {models_str}"
         except Exception as e:
             logger.error(f"Gemini text generation error: {e}")
             return f"⚠️ Gemini API Error: {str(e)}. Please make sure your Gemini API key from Google AI Studio (https://aistudio.google.com/app/apikey) is valid and correctly entered in the Settings tab."
@@ -132,10 +162,10 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
         return "Hello! I am your AI Legal and Government Scheme Assistant. How can I help you today? You can search schemes, upload documents for RAG QA, or check messages for scams!"
 
     if is_hindi:
-        return f"आपके प्रश्न '{prompt}' के आधार पर, यह एक सरकारी सेवा या योजना से संबंधित प्रतीत होता है। कृपया अधिक विवरण प्रदान करें या विशिष्ट दस्तावेज अपलोड करें ताकि मैं सटीक विवरण प्रदान कर सकूं।"
+        return f"आपके प्रश्न '{prompt}' के आधार पर, यह एक सरकारी सेवा या योजना से संबंधित प्रतीत होता है। असली AI उत्तर के लिए कृपया सेटिंग्स में अपना Gemini API Key दर्ज करें।"
     elif is_marathi:
-        return f"तुमच्या '{prompt}' या प्रश्नावरून, हे शासकीय योजना किंवा कायद्याशी संबंधित दिसते. कृपया अधिक माहिती द्या या कागदपत्रे अपलोड करा जेणेकरून मी अचूक माहिती देऊ शकेन."
-    return f"Based on your query: '{prompt}', I can assist you with government scheme search, document analysis, form guidance, and scam warning checks. Please upload a PDF or clarify your request so I can give you a precise answer."
+        return f"तुमच्या '{prompt}' या प्रश्नावरून, हे शासकीय योजना किंवा कायद्याशी संबंधित दिसते. खऱ्या AI उत्तरासाठी कृपया सेटिंग्जमध्ये तुमचा Gemini API Key टाका."
+    return f"You asked: '{prompt}'. To get a real, ChatGPT-like AI answer for ANY topic, please enter a valid Gemini API Key in the Settings (gear icon) menu!"
 
 async def detect_scam(text: str) -> dict:
     """Uses Gemini to detect if text/link is a scam and returns structured results."""
@@ -147,21 +177,26 @@ async def detect_scam(text: str) -> dict:
     )
     
     if has_gemini and GENAI_AVAILABLE and client:
-        try:
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=[system_prompt, f"Analyze this message: {text}"],
-                config=types.GenerateContentConfig(response_mime_type="application/json")
-            )
-            parsed = json.loads(response.text)
-            return {
-                "is_scam": bool(parsed.get("is_scam", False)),
-                "confidence": float(parsed.get("confidence", 0.0)),
-                "reason": str(parsed.get("reason", "Unknown")),
-                "safety_steps": str(parsed.get("safety_steps", "Do not share personal details."))
-            }
-        except Exception as e:
-            logger.error(f"Gemini scam detection error: {e}. Falling back to rules engine.")
+        last_error = None
+        for model_name in FALLBACK_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[system_prompt, f"Analyze this message: {text}"],
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+                parsed = json.loads(response.text)
+                return {
+                    "is_scam": bool(parsed.get("is_scam", False)),
+                    "confidence": float(parsed.get("confidence", 0.0)),
+                    "reason": str(parsed.get("reason", "Unknown")),
+                    "safety_steps": str(parsed.get("safety_steps", "Do not share personal details."))
+                }
+            except Exception as e:
+                logger.warning(f"Scam detection model {model_name} failed: {e}")
+                last_error = e
+                
+        logger.error(f"Gemini scam detection all models failed: {last_error}. Falling back to rules engine.")
             
     text_lower = text.lower()
     
