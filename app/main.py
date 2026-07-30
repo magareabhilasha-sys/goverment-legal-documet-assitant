@@ -138,6 +138,49 @@ async def chat_endpoint(request: ChatRequest):
         language=language
     )
 
+@app.post("/api/chat/general", response_model=ChatResponse)
+async def chat_general_endpoint(request: ChatRequest):
+    session_id = request.session_id + "_general" # Use a separate history namespace
+    message = request.message
+    language = request.language
+    
+    system_instruction = (
+        "You are a helpful, versatile AI assistant. "
+        "Your goal is to answer any question the user has to the best of your ability, "
+        "acting like a general-purpose conversational agent (like ChatGPT). "
+        f"Always answer in the selected language: {language}. "
+        "Be friendly, clear, and informative."
+    )
+    
+    history = await db.get_chat_history(session_id)
+    
+    await db.save_chat_message(
+        session_id=session_id,
+        sender="user",
+        text=message,
+        voice=request.voice
+    )
+    
+    reply = await gemini.generate_chat_response(
+        prompt=message,
+        chat_history=history,
+        system_instruction=system_instruction,
+        is_general=True
+    )
+    
+    await db.save_chat_message(
+        session_id=session_id,
+        sender="assistant",
+        text=reply,
+        voice=False
+    )
+    
+    return ChatResponse(
+        reply=reply,
+        is_rag=False,
+        language=language
+    )
+
 @app.post("/api/documents/upload")
 async def upload_document(
     session_id: str = Form(...),

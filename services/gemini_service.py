@@ -72,7 +72,7 @@ async def generate_embedding(text: str) -> list[float]:
     random.seed(hash(text))
     return [random.uniform(-0.1, 0.1) for _ in range(768)]
 
-async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None) -> str:
+async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False) -> str:
     """Generates a chat completion with history and system prompts"""
     if chat_history is None:
         chat_history = []
@@ -118,6 +118,11 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
         elif is_marathi:
             return "पंतप्रधान श्रम योगी मान-धन (PM-SYM) योजना असंघटित क्षेत्रातील कामगारांसाठी (१८-४० वर्षे) पेन्शन योजना आहे. वयाच्या ६० वर्षांनंतर ₹३,००० मासिक पेन्शन मिळते."
         return "The PM-SYM scheme is a voluntary pension scheme for unorganized workers aged 18-40 with income under ₹15,000. Provides ₹3,000 monthly pension after age 60."
+
+    if is_general:
+        if "hello" in prompt_lower or "hi" in prompt_lower or "नमस्ते" in prompt_lower or "नमस्कार" in prompt_lower:
+            return "Hello! I am a general AI assistant. How can I help you today? (Note: API Key missing, running in Mock Mode)"
+        return f"You asked: '{prompt}'. As a general AI assistant running in mock mode without an API key, I acknowledge your question! Please configure the Gemini API Key to get a real response."
 
     if "hello" in prompt_lower or "hi" in prompt_lower or "नमस्ते" in prompt_lower or "नमस्कार" in prompt_lower:
         if is_hindi:
