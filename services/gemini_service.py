@@ -119,10 +119,7 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
                     logger.warning(f"Model {model_name} failed: {e}")
                     last_error = e
             
-            # If all failed:
-            try:
-                available_models = [m.name for m in client.models.list()]
-                models_str = ", ".join(available_models)
+            pass
         except Exception as e:
             logger.error(f"Gemini text generation error: {e}")
             
