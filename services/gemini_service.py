@@ -88,69 +88,37 @@ FALLBACK_MODELS = [
 ]
 
 
-async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False) -> str:
-    """Generates a chat completion with history and system prompts"""
-    if chat_history is None:
-        chat_history = []
+async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False):
+    chat_history = chat_history or []
+    
+    # ALWAYS use Pollinations AI (free, no API key required) to guarantee ChatGPT-like responses
+    try:
+        import urllib.request
+        import json
         
-    if has_gemini and GENAI_AVAILABLE and client:
-        try:
-            contents = []
-            for msg in chat_history:
-                role = "user" if msg["sender"] == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part(text=msg["text"])]))
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        
+        for msg in chat_history:
+            m_role = "user" if msg["sender"] == "user" else "assistant"
+            messages.append({"role": m_role, "content": msg["text"]})
+        
+        messages.append({"role": "user", "content": prompt})
+        
+        data = json.dumps({"messages": messages}).encode('utf-8')
+        req = urllib.request.Request(
+            "https://text.pollinations.ai/", 
+            data=data, 
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return response.read().decode('utf-8')
             
-            contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
-            
-            config_args = {}
-            if system_instruction:
-                config_args["system_instruction"] = system_instruction
-                
-            last_error = None
-            for model_name in FALLBACK_MODELS:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=types.GenerateContentConfig(**config_args) if config_args else None
-                    )
-                    return response.text
-                except Exception as e:
-                    logger.warning(f"Model {model_name} failed: {e}")
-                    last_error = e
-            
-            pass
-        except Exception as e:
-            logger.error(f"Gemini text generation error: {e}")
-            
-            # FREE FALLBACK: If Gemini API fails (e.g. invalid key), seamlessly use Pollinations AI
-            try:
-                import urllib.request
-                import json
-                
-                messages = []
-                if system_instruction:
-                    messages.append({"role": "system", "content": system_instruction})
-                
-                for msg in chat_history:
-                    m_role = "user" if msg["sender"] == "user" else "assistant"
-                    messages.append({"role": m_role, "content": msg["text"]})
-                
-                messages.append({"role": "user", "content": prompt})
-                
-                data = json.dumps({"messages": messages}).encode('utf-8')
-                req = urllib.request.Request(
-                    "https://text.pollinations.ai/", 
-                    data=data, 
-                    headers={'Content-Type': 'application/json'}
-                )
-                
-                with urllib.request.urlopen(req, timeout=15) as response:
-                    return response.read().decode('utf-8')
-                    
-            except Exception as fallback_error:
-                logger.error(f"Fallback AI error: {fallback_error}")
-                return f"⚠️ Gemini API Error: {str(e)}. The provided Gemini API key ({api_key[:5]}...) appears to be invalid or rejected by Google (401 UNAUTHENTICATED)."
+    except Exception as fallback_error:
+        logger.error(f"Fallback AI error: {fallback_error}")
+        return f"⚠️ Chatbot is temporarily unavailable due to a network error connecting to the AI provider. Please try again later."
             
     prompt_lower = prompt.lower()
     
