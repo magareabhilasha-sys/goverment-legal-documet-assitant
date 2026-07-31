@@ -110,15 +110,29 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
         req = urllib.request.Request(
             "https://text.pollinations.ai/", 
             data=data, 
-            headers={'Content-Type': 'application/json'}
+            headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            }
         )
         
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
             
     except Exception as fallback_error:
-        logger.error(f"Fallback AI error: {fallback_error}")
-        return f"⚠️ Chatbot is temporarily unavailable due to a network error connecting to the AI provider. Please try again later."
+        try:
+            # Plan B: Simple GET request
+            import urllib.parse
+            encoded = urllib.parse.quote(prompt)
+            req2 = urllib.request.Request(
+                f"https://text.pollinations.ai/{encoded}?model=openai", 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            with urllib.request.urlopen(req2, timeout=15) as response:
+                return response.read().decode('utf-8')
+        except Exception as e2:
+            logger.error(f"Fallback AI error: {fallback_error}, GET error: {e2}")
+            return f"⚠️ Chatbot is temporarily unavailable due to a network error connecting to the AI provider. (POST Error: {fallback_error}, GET Error: {e2})"
             
     prompt_lower = prompt.lower()
     
