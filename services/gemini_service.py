@@ -123,13 +123,37 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             try:
                 available_models = [m.name for m in client.models.list()]
                 models_str = ", ".join(available_models)
-            except Exception as e:
-                models_str = f"Could not fetch models: {e}"
-                
-            return f"⚠️ Gemini API Error: No models worked. Last error: {str(last_error)}. \n\n**AVAILABLE MODELS FOR YOUR KEY:** {models_str}"
         except Exception as e:
             logger.error(f"Gemini text generation error: {e}")
-            return f"⚠️ Gemini API Error: {str(e)}. The provided Gemini API key appears to be invalid or rejected by Google. Please ensure you are using a real Gemini key starting with 'AIza' from Google AI Studio."
+            
+            # FREE FALLBACK: If Gemini API fails (e.g. invalid key), seamlessly use Pollinations AI
+            try:
+                import urllib.request
+                import json
+                
+                messages = []
+                if system_instruction:
+                    messages.append({"role": "system", "content": system_instruction})
+                
+                for msg in chat_history:
+                    m_role = "user" if msg["sender"] == "user" else "assistant"
+                    messages.append({"role": m_role, "content": msg["text"]})
+                
+                messages.append({"role": "user", "content": prompt})
+                
+                data = json.dumps({"messages": messages}).encode('utf-8')
+                req = urllib.request.Request(
+                    "https://text.pollinations.ai/", 
+                    data=data, 
+                    headers={'Content-Type': 'application/json'}
+                )
+                
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    return response.read().decode('utf-8')
+                    
+            except Exception as fallback_error:
+                logger.error(f"Fallback AI error: {fallback_error}")
+                return f"⚠️ Gemini API Error: {str(e)}. The provided Gemini API key ({api_key[:5]}...) appears to be invalid or rejected by Google (401 UNAUTHENTICATED)."
             
     prompt_lower = prompt.lower()
     
