@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import random
+import re
 from config import GEMINI_API_KEY
 
 logger = logging.getLogger("gemini_service")
@@ -132,8 +133,8 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             
     prompt_lower = prompt.lower()
     
-    is_hindi = any(word in prompt_lower for word in ["नमस्ते", "है", "क्या", "कहाँ", "योजना", "दस्तावेज"])
-    is_marathi = any(word in prompt_lower for word in ["नमस्कार", "आहे", "कुठे", "माहिती", "कागदपत्रे"])
+    is_hindi = any(re.search(rf"\b{word}\b", prompt_lower, re.UNICODE) for word in ["नमस्ते", "है", "क्या", "कहाँ", "योजना", "दस्तावेज"])
+    is_marathi = any(re.search(rf"\b{word}\b", prompt_lower, re.UNICODE) for word in ["नमस्कार", "आहे", "कुठे", "माहिती", "कागदपत्रे"])
     
     if "pm-kisan" in prompt_lower or "pm kisan" in prompt_lower or "किसान" in prompt_lower:
         if is_hindi:
@@ -149,12 +150,21 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             return "पंतप्रधान श्रम योगी मान-धन (PM-SYM) योजना असंघटित क्षेत्रातील कामगारांसाठी (१८-४० वर्षे) पेन्शन योजना आहे. वयाच्या ६० वर्षांनंतर ₹३,००० मासिक पेन्शन मिळते."
         return "The PM-SYM scheme is a voluntary pension scheme for unorganized workers aged 18-40 with income under ₹15,000. Provides ₹3,000 monthly pension after age 60."
 
+    if "post-matric" in prompt_lower or "post matric" in prompt_lower or "scholarship" in prompt_lower or "छात्रवृत्ति" in prompt_lower or "शिष्यवृत्ती" in prompt_lower:
+        if is_hindi:
+            return "पोस्ट मैट्रिक छात्रवृत्ति (Post Matric Scholarship) योजना अनुसूचित जाति (SC), अनुसूचित जनजाति (ST), और अन्य पिछड़े वर्गों (OBC) के छात्रों को उच्च शिक्षा प्राप्त करने के लिए वित्तीय सहायता प्रदान करती है। आवश्यक दस्तावेज़: आधार कार्ड, आय प्रमाण पत्र, जाति प्रमाण पत्र, मार्कशीट, फीस रसीद और बैंक पासबुक।"
+        elif is_marathi:
+            return "पोस्ट मॅट्रिक शिष्यवृत्ती (Post Matric Scholarship) योजना अनुसूचित जाती (SC), जमाती (ST) आणि इतर मागासवर्गीय (OBC) विद्यार्थ्यांना उच्च शिक्षणासाठी आर्थिक मदत देते. आवश्यक कागदपत्रे: आधार कार्ड, उत्पन्नाचा दाखला, जातीचा दाखला, गुणपत्रिका, फी पावती आणि बँक पासबुक."
+        return "The Post Matric Scholarship Scheme provides financial assistance to students belonging to Scheduled Castes (SC), Scheduled Tribes (ST), and other backward classes (OBC) to pursue higher education. Required documents: Aadhaar Card, Income Certificate, Caste Certificate, Mark sheets, Fee Receipt, and Bank Passbook."
+
+    is_greeting = bool(re.search(r'\b(hello|hi|hey|नमस्ते|नमस्कार)\b', prompt_lower, re.UNICODE))
+
     if is_general:
-        if "hello" in prompt_lower or "hi" in prompt_lower or "नमस्ते" in prompt_lower or "नमस्कार" in prompt_lower:
+        if is_greeting:
             return "Hello! I am a general AI assistant. How can I help you today? (Note: API Key missing, running in Mock Mode)"
         return f"You asked: '{prompt}'. As a general AI assistant running in mock mode without an API key, I acknowledge your question! Please configure the Gemini API Key to get a real response."
 
-    if "hello" in prompt_lower or "hi" in prompt_lower or "नमस्ते" in prompt_lower or "नमस्कार" in prompt_lower:
+    if is_greeting:
         if is_hindi:
             return "नमस्ते! मैं आपका एआई कानूनी और सरकारी योजना सहायक हूँ। मैं आपकी किस प्रकार सहायता कर सकता हूँ? आप दस्तावेज़ अपलोड कर सकते हैं या किसी भी योजना के बारे में पूछ सकते हैं।"
         elif is_marathi:
