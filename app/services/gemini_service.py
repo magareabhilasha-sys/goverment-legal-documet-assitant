@@ -82,9 +82,9 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             contents = []
             for msg in chat_history:
                 role = "user" if msg["sender"] == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg["text"])]))
+                contents.append(types.Content(role=role, parts=[types.Part(text=msg["text"])]))
             
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=prompt)]))
+            contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
             
             config_args = {}
             if system_instruction:

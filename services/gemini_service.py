@@ -98,9 +98,9 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             contents = []
             for msg in chat_history:
                 role = "user" if msg["sender"] == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg["text"])]))
+                contents.append(types.Content(role=role, parts=[types.Part(text=msg["text"])]))
             
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=prompt)]))
+            contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
             
             config_args = {}
             if system_instruction:
@@ -129,7 +129,7 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
             return f"⚠️ Gemini API Error: No models worked. Last error: {str(last_error)}. \n\n**AVAILABLE MODELS FOR YOUR KEY:** {models_str}"
         except Exception as e:
             logger.error(f"Gemini text generation error: {e}")
-            return f"⚠️ Gemini API Error: {str(e)}. Please make sure your Gemini API key from Google AI Studio (https://aistudio.google.com/app/apikey) is valid and correctly entered in the Settings tab."
+            return f"⚠️ Gemini API Error: {str(e)}. The provided Gemini API key appears to be invalid or rejected by Google. Please ensure you are using a real Gemini key starting with 'AIza' from Google AI Studio."
             
     prompt_lower = prompt.lower()
     
