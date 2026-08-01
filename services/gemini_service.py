@@ -114,9 +114,24 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
         except Exception as e:
             logger.error(f"Gemini SDK Error: {e}")
             if "401" in str(e) or "403" in str(e):
-                return (f"⚠️ **Google Gemini API Key Error (401/403)**\n\n"
-                        f"Google rejected your API Key (`{api_key[:5]}...`).\n"
-                        f"**Solution:** Ensure the key is valid and billing is enabled.")
+                logger.warning("Gemini API key rejected (likely due to Render EU region block). Falling back to free public AI...")
+                try:
+                    import urllib.request
+                    import json
+                    fallback_msgs = [{"role": "system", "content": system_instruction or "You are a helpful AI assistant."}]
+                    for msg in chat_history:
+                        fallback_msgs.append({"role": "user" if msg["sender"] == "user" else "assistant", "content": msg["text"]})
+                    fallback_msgs.append({"role": "user", "content": prompt})
+                    
+                    req = urllib.request.Request(
+                        "https://text.pollinations.ai/openai", 
+                        data=json.dumps({"messages": fallback_msgs, "model": "openai"}).encode('utf-8'),
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    with urllib.request.urlopen(req, timeout=20) as res:
+                        return json.loads(res.read().decode('utf-8'))['choices'][0]['message']['content']
+                except Exception as fallback_err:
+                    return f"⚠️ **API Error (401/403)**\n\nGoogle rejected the API Key, and the backup AI also failed: {fallback_err}"
             return f"⚠️ **Server Error**: Failed to connect to Google API. {str(e)}"
             
     prompt_lower = prompt.lower()
