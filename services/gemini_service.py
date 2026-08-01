@@ -124,15 +124,15 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
                     fallback_msgs.append({"role": "user", "content": prompt})
                     
                     req = urllib.request.Request(
-                        "https://text.pollinations.ai/", 
-                        data=json.dumps({"messages": fallback_msgs}).encode('utf-8'),
+                        "https://text.pollinations.ai/openai", 
+                        data=json.dumps({"messages": fallback_msgs, "model": "openai"}).encode('utf-8'),
                         headers={
                             'Content-Type': 'application/json',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                         }
                     )
                     with urllib.request.urlopen(req, timeout=60) as res:
-                        return res.read().decode('utf-8')
+                        return json.loads(res.read().decode('utf-8'))['choices'][0]['message']['content']
                 except Exception as fallback_err:
                     logger.error(f"Fallback AI also failed: {fallback_err}")
                     if "pm-kisan" in prompt.lower() or "kisan" in prompt.lower():
