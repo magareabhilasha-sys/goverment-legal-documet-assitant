@@ -91,58 +91,33 @@ FALLBACK_MODELS = [
 async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False):
     chat_history = chat_history or []
     
-    # We will use a DIRECT HTTP request to the Google Gemini API to completely bypass any SDK bugs with the new 'AQ.' keys.
-    import urllib.request
-    import json
-    
-    # Use the hardcoded key from config
-    current_key = api_key
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={current_key}"
-    
-    formatted_contents = []
-    if system_instruction:
-        formatted_contents.append({
-            "role": "user",
-            "parts": [{"text": f"System Instruction (obey this): {system_instruction}"}]
-        })
-        formatted_contents.append({
-            "role": "model",
-            "parts": [{"text": "Understood."}]
-        })
-        
-    for msg in chat_history:
-        role = "user" if msg["sender"] == "user" else "model"
-        formatted_contents.append({"role": role, "parts": [{"text": msg["text"]}]})
-        
-    formatted_contents.append({"role": "user", "content" if "pollinations" in api_url else "parts": [{"text": prompt}]})
-    
-    payload = {
-        "contents": formatted_contents,
-        "generationConfig": {"temperature": 0.7}
-    }
-    
-    try:
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(api_url, data=data, headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=20) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result['candidates'][0]['content']['parts'][0]['text']
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode('utf-8')
-        logger.error(f"Gemini REST Error: {error_body}")
-        
-        # If the API key is unauthorized or quota exceeded, give a clear explanation
-        if e.code == 401 or e.code == 403:
-            return (f"⚠️ **Google Gemini API Key Error ({e.code})**\n\n"
-                    f"Your code is perfectly fine, but Google's servers rejected your API Key (`{current_key[:5]}...`).\n"
-                    f"**Reason:** The key is either deactivated, restricted by IP, or the Google Cloud project has no billing setup.\n"
-                    f"**Solution:** Please go to Google AI Studio, generate a brand new key, and update it in your code!")
-        elif e.code == 429:
-            return "⚠️ **Rate Limit Reached**: Your Gemini API key has run out of free quota for today. Please wait or upgrade."
+    if has_gemini and GENAI_AVAILABLE and client:
+        try:
+            config_args = {"temperature": 0.7}
+            if system_instruction:
+                config_args["system_instruction"] = system_instruction
+                
+            contents = []
+            for msg in chat_history:
+                contents.append({
+                    "role": "user" if msg["sender"] == "user" else "model",
+                    "parts": [{"text": msg["text"]}]
+                })
+            contents.append({"role": "user", "parts": [{"text": prompt}]})
             
-        return f"⚠️ **Google API Error**: {error_body}"
-    except Exception as e:
-        return f"⚠️ **Server Error**: Failed to connect to Google API. {str(e)}"
+            response = client.models.generate_content(
+                model="gemini-flash-latest",
+                contents=contents,
+                config=types.GenerateContentConfig(**config_args)
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Gemini SDK Error: {e}")
+            if "401" in str(e) or "403" in str(e):
+                return (f"⚠️ **Google Gemini API Key Error (401/403)**\n\n"
+                        f"Google rejected your API Key (`{api_key[:5]}...`).\n"
+                        f"**Solution:** Ensure the key is valid and billing is enabled.")
+            return f"⚠️ **Server Error**: Failed to connect to Google API. {str(e)}"
             
     prompt_lower = prompt.lower()
     
