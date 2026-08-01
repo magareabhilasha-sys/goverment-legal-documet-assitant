@@ -131,7 +131,7 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                         }
                     )
-                    with urllib.request.urlopen(req, timeout=15) as res:
+                    with urllib.request.urlopen(req, timeout=60) as res:
                         return res.read().decode('utf-8')
                 except Exception as fallback_err:
                     logger.error(f"Fallback AI also failed: {fallback_err}")
