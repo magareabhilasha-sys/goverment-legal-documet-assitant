@@ -97,7 +97,7 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
     
     # Use the hardcoded key from config
     current_key = api_key if api_key else "AQ.Ab8RN6KZTfZhIPAYV0PVXdKJ4eok5v4q_5H6DUUbd65TUNKuMg"
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={current_key}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={current_key}"
     
     formatted_contents = []
     if system_instruction:

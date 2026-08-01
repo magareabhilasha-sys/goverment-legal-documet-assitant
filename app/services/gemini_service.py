@@ -91,7 +91,7 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
                 config_args["system_instruction"] = system_instruction
                 
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-flash-latest",
                 contents=contents,
                 config=types.GenerateContentConfig(**config_args) if config_args else None
             )
@@ -148,7 +148,7 @@ async def detect_scam(text: str) -> dict:
     if has_gemini and GENAI_AVAILABLE and client:
         try:
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-flash-latest",
                 contents=[system_prompt, f"Analyze this message: {text}"],
                 config=types.GenerateContentConfig(response_mime_type="application/json")
             )
