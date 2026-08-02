@@ -96,26 +96,25 @@ async def generate_chat_response(prompt: str, chat_history: list = None, system_
     # --- GROQ API (Primary, Lightning Fast, No Region Blocks) ---
     if GROQ_API_KEY:
         try:
-            import urllib.request
-            import json
+            from groq import Groq
+            
+            groq_client = Groq(api_key=GROQ_API_KEY)
+            
             messages = [{"role": "system", "content": system_instruction or "You are a helpful Legal and Government Assistant. Answer clearly and politely."}]
             for msg in chat_history:
                 messages.append({"role": "user" if msg["sender"] == "user" else "assistant", "content": msg["text"]})
             messages.append({"role": "user", "content": prompt})
             
-            req = urllib.request.Request(
-                "https://api.groq.com/openai/v1/chat/completions", 
-                data=json.dumps({"messages": messages, "model": "llama-3.3-70b-versatile"}).encode('utf-8'),
-                headers={
-                    'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {GROQ_API_KEY}'
-                }
+            chat_completion = groq_client.chat.completions.create(
+                messages=messages,
+                model="llama-3.3-70b-versatile",
             )
-            with urllib.request.urlopen(req, timeout=30) as res:
-                return json.loads(res.read().decode('utf-8'))['choices'][0]['message']['content']
+            return chat_completion.choices[0].message.content
+        except ImportError:
+            return "⚠️ **CRITICAL FIX NEEDED**: Groq's firewall is blocking us. You MUST run `pip install groq` in your backend terminal, then completely restart the server!"
         except Exception as e:
             logger.error(f"Groq API Error: {e}")
-            return f"⚠️ **Groq API Error**: Please check your API key or internet connection. {str(e)}"
+            return f"⚠️ **Groq API Error**: Please check your API key. {str(e)}"
     
     # --- ULTIMATE FAILSAFE (If no API keys are provided) ---
     prompt_lower = prompt.lower()
