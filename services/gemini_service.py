@@ -88,62 +88,36 @@ FALLBACK_MODELS = [
 ]
 
 
+from config import GROQ_API_KEY
+
 async def generate_chat_response(prompt: str, chat_history: list = None, system_instruction: str = None, is_general: bool = False):
     chat_history = chat_history or []
     
-    if has_gemini and GENAI_AVAILABLE and client:
+    # --- GROQ API (Primary, Lightning Fast, No Region Blocks) ---
+    if GROQ_API_KEY:
         try:
-            config_args = {"temperature": 0.7}
-            if system_instruction:
-                config_args["system_instruction"] = system_instruction
-                
-            contents = []
+            import urllib.request
+            import json
+            messages = [{"role": "system", "content": system_instruction or "You are a helpful Legal and Government Assistant. Answer clearly and politely."}]
             for msg in chat_history:
-                contents.append({
-                    "role": "user" if msg["sender"] == "user" else "model",
-                    "parts": [{"text": msg["text"]}]
-                })
-            contents.append({"role": "user", "parts": [{"text": prompt}]})
+                messages.append({"role": "user" if msg["sender"] == "user" else "assistant", "content": msg["text"]})
+            messages.append({"role": "user", "content": prompt})
             
-            response = client.models.generate_content(
-                model="gemini-flash-latest",
-                contents=contents,
-                config=types.GenerateContentConfig(**config_args)
+            req = urllib.request.Request(
+                "https://api.groq.com/openai/v1/chat/completions", 
+                data=json.dumps({"messages": messages, "model": "llama-3.3-70b-versatile"}).encode('utf-8'),
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {GROQ_API_KEY}'
+                }
             )
-            return response.text
+            with urllib.request.urlopen(req, timeout=30) as res:
+                return json.loads(res.read().decode('utf-8'))['choices'][0]['message']['content']
         except Exception as e:
-            logger.error(f"Gemini SDK Error: {e}")
-            if "401" in str(e) or "403" in str(e):
-                logger.warning("Gemini API key rejected. Falling back to free public AI...")
-                try:
-                    import urllib.request
-                    import json
-                    fallback_msgs = [{"role": "system", "content": system_instruction or "You are a helpful AI assistant."}]
-                    for msg in chat_history:
-                        fallback_msgs.append({"role": "user" if msg["sender"] == "user" else "assistant", "content": msg["text"]})
-                    fallback_msgs.append({"role": "user", "content": prompt})
-                    
-                    req = urllib.request.Request(
-                        "https://text.pollinations.ai/openai", 
-                        data=json.dumps({"messages": fallback_msgs, "model": "openai"}).encode('utf-8'),
-                        headers={
-                            'Content-Type': 'application/json',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        }
-                    )
-                    with urllib.request.urlopen(req, timeout=60) as res:
-                        return json.loads(res.read().decode('utf-8'))['choices'][0]['message']['content']
-                except Exception as fallback_err:
-                    logger.error(f"Fallback AI also failed: {fallback_err}")
-                    if "pm-kisan" in prompt.lower() or "kisan" in prompt.lower():
-                        return "The PM-KISAN scheme provides ₹6,000 per year in three equal installments to small and marginal farmers. Required documents: Aadhaar card, land records, and bank account details."
-                    elif "pmsym" in prompt.lower() or "pension" in prompt.lower():
-                        return "The PM-SYM scheme is a voluntary pension scheme for unorganized workers aged 18-40. It provides a ₹3,000 monthly pension after age 60."
-                    else:
-                        return f"Based on your query '{prompt}', I can assist you with information regarding various government schemes like PM-KISAN, PM-SYM, or PM Awas Yojana. Please upload a document or ask about a specific scheme!"
-                        
-            return f"⚠️ **Server Error**: Failed to connect to Google API. {str(e)}"
-            
+            logger.error(f"Groq API Error: {e}")
+            return f"⚠️ **Groq API Error**: Please check your API key or internet connection. {str(e)}"
+    
+    # --- ULTIMATE FAILSAFE (If no API keys are provided) ---
     prompt_lower = prompt.lower()
     
     is_hindi = any(re.search(rf"\b{word}\b", prompt_lower, re.UNICODE) for word in ["नमस्ते", "है", "क्या", "कहाँ", "योजना", "दस्तावेज"])
